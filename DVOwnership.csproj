@@ -90,6 +90,7 @@
     <Compile Include="CommsRadioEquipmentPurchaser.cs" />
     <Compile Include="DVOwnership.cs" />
     <Compile Include="Equipment.cs" />
+    <Compile Include="LoadHaulUnloadChainSaveData.cs" />
     <Compile Include="Patches\GetBookletTemplateData_Patches.cs" />
     <Compile Include="StaticLoadHaulUnloadJobDefinition.cs" />
     <Compile Include="Patches\JobChainControllerWithEmptyHaulGeneration_Patches.cs" />

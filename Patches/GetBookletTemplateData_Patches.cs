@@ -6,13 +6,107 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using UnityEngine;
 
 namespace DVOwnership.Patches
 {
+    static class Helpers
+    {
+        public static IEnumerable<Car> _getCars(TaskData task)
+        {
+            if (task == null)
+            {
+                yield break;
+            }
+
+            if (task?.cars?.Count > 0 && task.cars != null)
+            {
+                foreach (var car in task.cars)
+                {
+                    yield return car;
+                }
+            }
+            if (task?.nestedTasks?.Count > 0)
+            {
+                foreach (var subtask in task.nestedTasks)
+                {
+                    if (subtask != null)
+                    {
+                        foreach (var subtaskCar in _getCars(subtask.GetTaskData()))
+                        {
+                            yield return subtaskCar;
+                        }
+                    }
+                }
+            }
+        }
+
+        public static IEnumerable<CargoType> _getCargoTypePerCar(TaskData task)
+        {
+            if (task == null)
+            {
+                yield break;
+            }
+
+            if (task?.cars?.Count > 0 && task.cargoTypePerCar != null)
+            {
+                foreach (var cargoType in task.cargoTypePerCar)
+                {
+                    yield return cargoType;
+                }
+            }
+            if (task?.nestedTasks?.Count > 0)
+            {
+                foreach (var subtask in task.nestedTasks)
+                {
+                    if (subtask != null)
+                    {
+                        foreach (var subtaskCargoType in _getCargoTypePerCar(subtask.GetTaskData()))
+                        {
+                            yield return subtaskCargoType;
+                        }
+                    }
+                }
+            }
+        }
+
+        public static string _getTrackId(TaskData task)
+        {
+            if (task.nestedTasks?.Count > 0)
+            {
+                return _getTrackId(task.nestedTasks.First().GetTaskData());
+            }
+            return task.destinationTrack.ID.FullDisplayID;
+        }
+
+        public delegate StationInfo ExtractStationDelegate(string id);
+        public static readonly ExtractStationDelegate ExtractStationFromId =
+            AccessTools.Method(typeof(BookletCreator), "ExtractStationInfoWithYardID")?.CreateDelegate(typeof(ExtractStationDelegate)) as ExtractStationDelegate;
+
+    }
+
     // BookletCreator.GetBookletTemplateData
     [HarmonyPatch(typeof(BookletCreator), "GetBookletTemplateData")]
     static class GetBookletTemplateData_Patches
     {
+        static Color? _TRACK_COLOR = null;
+        static Color TRACK_COLOR
+        {
+            get
+            {
+                if (!_TRACK_COLOR.HasValue)
+                {
+                    _TRACK_COLOR = AccessTools.Field(typeof(BookletCreator), "TRACK_COLOR")?.GetValue(null) as Color?;
+                    if (!_TRACK_COLOR.HasValue)
+                    {
+                        //PassengerJobs.ModEntry.Logger.Error("Failed to get track color from BookletCreator");
+                        return Color.white;
+                    }
+                }
+                return _TRACK_COLOR.Value;
+            }
+        }
+
         static bool Prefix(Job job, ref List<TemplatePaperData> __result )
         {
             // TODO: add our own job type - for mod compatibility?
@@ -26,22 +120,18 @@ namespace DVOwnership.Patches
             return false;
         }
 
-        delegate StationInfo ExtractStationDelegate(string id);
-        static readonly ExtractStationDelegate ExtractStationFromId =
-            AccessTools.Method(typeof(BookletCreator), "ExtractStationInfoWithYardID")?.CreateDelegate(typeof(ExtractStationDelegate)) as ExtractStationDelegate;
-
         static List<TemplatePaperData> GetBookletData(Job job)
         {
             var pages = new List<TemplatePaperData>();
-            int pageNum = 0;
-            int stepNum = 0;
-            int totalPages = 5;
+            int pageNum = 1;
+            int stepNum = 1;
+            int totalPages = 6;
 
             var jobData = job.GetJobData();
 
             var superTask = jobData.FirstOrDefault();
-            if (superTask != null)
-                return pages;
+            if (superTask == null)
+                throw new Exception($"could not find super task {job.ID}");
 
             var nestedTasks = superTask.nestedTasks.Select(t => t.GetTaskData()).ToArray();
 
@@ -50,13 +140,43 @@ namespace DVOwnership.Patches
             var haulTask = nestedTasks[2];
             var unloadTask = nestedTasks[3];
 
-            var originStation = ExtractStationFromId(job.chainData.chainOriginYardId);
-            var destinationStation = ExtractStationFromId(job.chainData.chainDestinationYardId);
+            var originStation = Helpers.ExtractStationFromId(job.chainData.chainOriginYardId);
+            var destinationStation = Helpers.ExtractStationFromId(job.chainData.chainDestinationYardId);
 
             // Cover Page
             pages.Add(new CoverPageTemplatePaperData(
                 jobID: job.ID,
-                jobType: "Load, Deliver, Unload",
+                jobType: "FREIGHT HAUL",
+                pageNumber: (pageNum++).ToString(),
+                totalPages: totalPages.ToString()
+            ));
+            DVOwnership.LogDebug(() => "created cover page");
+
+            // Overview Page
+            pages.Add(new FrontPageTemplatePaperData(
+                jobType: "FREIGHT HAUL",
+                jobSubtype: "",
+                jobId: job.ID,
+                jobTypeColor: UnityEngine.Color.green,
+                jobDescription: $"Load the cars at {originStation.Name}, deliver them to {destinationStation.Name}, and unload them.",
+                requiredLicenses: job.requiredLicenses,
+                distinctCargoTypes: haulTask.cargoTypePerCar.Distinct().ToList(),
+                cargoTypePerCar: haulTask.cargoTypePerCar,
+                singleStationName: "",
+                singleStationType: "",
+                singleStationBgColor: UnityEngine.Color.white,
+                startStationName: originStation.Name,
+                startStationType: originStation.Type,
+                startStationBgColor: originStation.StationColor,
+                endStationName: destinationStation.Name,
+                endStationType: destinationStation.Type,
+                endStationBgColor: destinationStation.StationColor,
+                cars: Helpers._getCars(haulTask).Select(c => new Tuple<TrainCarType, string>(c.carType, c.ID)).ToList(),
+                trainLenght: Helpers._getCars(haulTask).Sum(c => c.length).ToString(),
+                trainMass: (Helpers._getCars(haulTask).Sum(c => c.carOnlyMass) + haulTask.cargoTypePerCar.Sum(c => CargoTypes.GetCargoMass(c, 1))).ToString(),
+                trainValue: "TODO",
+                timeBonus: job.GetBonusPaymentForTheJob().ToString(),
+                payment: job.GetBasePaymentForTheJob().ToString(),
                 pageNumber: (pageNum++).ToString(),
                 totalPages: totalPages.ToString()
             ));
@@ -64,20 +184,21 @@ namespace DVOwnership.Patches
             // Stage Task Page
             pages.Add(new TaskTemplatePaperData(
                 stepNum: (stepNum++).ToString(),
-                taskType: "STAGE",
-                taskDescription: "Stage cars on loading track:",
+                taskType: "COUPLE",
+                taskDescription: "Couple following cars at station/track:",
                 yardId: originStation.YardID,
                 yardColor: originStation.StationColor,
-                trackId: stageTask.destinationTrack.ID.FullDisplayID,
-                trackColor: originStation.StationColor,
-                stationName: originStation.Name,
-                stationType: originStation.Type,
-                stationColor: originStation.StationColor,
-                cars: stageTask.cars.Select(c => new Tuple<TrainCarType, string>(c.carType, c.ID)).ToList(),
-                cargoTypePerCar: stageTask.cargoTypePerCar,
+                trackId: Helpers._getTrackId(stageTask),
+                trackColor: TRACK_COLOR,
+                stationName: "",
+                stationType: "",
+                stationColor: TemplatePaperData.NOT_USED_COLOR,
+                cars: Helpers._getCars(stageTask).Select(c => new Tuple<TrainCarType, string>(c.carType, c.ID)).ToList(),
+                cargoTypePerCar: Helpers._getCargoTypePerCar(stageTask).ToList(),
                 pageNumber: (pageNum++).ToString(),
                 totalPages: totalPages.ToString()
             ));
+            DVOwnership.LogDebug(() => "created stage task page");
 
             // Load Task Page
             pages.Add(new TaskTemplatePaperData(
@@ -86,34 +207,36 @@ namespace DVOwnership.Patches
                 taskDescription: "Load cars on loading track:",
                 yardId: originStation.YardID,
                 yardColor: originStation.StationColor,
-                trackId: loadTask.destinationTrack.ID.FullDisplayID,
-                trackColor: originStation.StationColor,
-                stationName: originStation.Name,
-                stationType: originStation.Type,
-                stationColor: originStation.StationColor,
-                cars: loadTask.cars.Select(c => new Tuple<TrainCarType, string>(c.carType, c.ID)).ToList(),
-                cargoTypePerCar: loadTask.cargoTypePerCar,
+                trackId: Helpers._getTrackId(loadTask),
+                trackColor: TRACK_COLOR,
+                stationName: "",
+                stationType: "",
+                stationColor: TemplatePaperData.NOT_USED_COLOR,
+                cars: Helpers._getCars(loadTask).Select(c => new Tuple<TrainCarType, string>(c.carType, c.ID)).ToList(),
+                cargoTypePerCar: Helpers._getCargoTypePerCar(loadTask).ToList(),
                 pageNumber: (pageNum++).ToString(),
                 totalPages: totalPages.ToString()
             ));
+            DVOwnership.LogDebug(() => "created load task page");
 
             // Transport Task Page
             pages.Add(new TaskTemplatePaperData(
                 stepNum: (stepNum++).ToString(),
                 taskType: "TRANSPORT",
-                taskDescription: $"Transport cars to {destinationStation.Name}:",
+                taskDescription: "Transport train the following location:",
                 yardId: destinationStation.YardID,
                 yardColor: destinationStation.StationColor,
-                trackId: haulTask.destinationTrack.ID.FullDisplayID,
-                trackColor: destinationStation.StationColor,
+                trackId: Helpers._getTrackId(haulTask),
+                trackColor: TRACK_COLOR,
                 stationName: destinationStation.Name,
                 stationType: destinationStation.Type,
                 stationColor: destinationStation.StationColor,
-                cars: haulTask.cars.Select(c => new Tuple<TrainCarType, string>(c.carType, c.ID)).ToList(),
-                cargoTypePerCar: haulTask.cargoTypePerCar,
+                cars: Helpers._getCars(haulTask).Select(c => new Tuple<TrainCarType, string>(c.carType, c.ID)).ToList(),
+                cargoTypePerCar: Helpers._getCargoTypePerCar(haulTask).ToList(),
                 pageNumber: (pageNum++).ToString(),
                 totalPages: totalPages.ToString()
             ));
+            DVOwnership.LogDebug(() => "created transport task page");
 
             // Unload Task Page
             pages.Add(new TaskTemplatePaperData(
@@ -122,16 +245,17 @@ namespace DVOwnership.Patches
                 taskDescription: $"Unload cars on the unloading track:",
                 yardId: destinationStation.YardID,
                 yardColor: destinationStation.StationColor,
-                trackId: unloadTask.destinationTrack.ID.FullDisplayID,
-                trackColor: destinationStation.StationColor,
-                stationName: destinationStation.Name,
-                stationType: destinationStation.Type,
-                stationColor: destinationStation.StationColor,
-                cars: unloadTask.cars.Select(c => new Tuple<TrainCarType, string>(c.carType, c.ID)).ToList(),
-                cargoTypePerCar: unloadTask.cargoTypePerCar,
+                trackId: Helpers._getTrackId(unloadTask),
+                trackColor: TRACK_COLOR,
+                stationName: "",
+                stationType: "",
+                stationColor: TemplatePaperData.NOT_USED_COLOR,
+                cars: Helpers._getCars(unloadTask).Select(c => new Tuple<TrainCarType, string>(c.carType, c.ID)).ToList(),
+                cargoTypePerCar: Helpers._getCargoTypePerCar(unloadTask).ToList(),
                 pageNumber: (pageNum++).ToString(),
                 totalPages: totalPages.ToString()
             ));
+            DVOwnership.LogDebug(() => "created unload task page");
 
             return pages;
         }
@@ -155,42 +279,35 @@ namespace DVOwnership.Patches
             return false;
         }
 
-        delegate StationInfo ExtractStationDelegate(string id);
-        static readonly ExtractStationDelegate ExtractStationFromId =
-            AccessTools.Method(typeof(BookletCreator), "ExtractStationInfoWithYardID")?.CreateDelegate(typeof(ExtractStationDelegate)) as ExtractStationDelegate;
-
         static List<TemplatePaperData> GetBookletData(Job job)
         {
             var pages = new List<TemplatePaperData>();
-            int pageNum = 0;
+            int pageNum = 1;
             int totalPages = 1;
 
             var jobData = job.GetJobData();
 
             var superTask = jobData.FirstOrDefault();
-            if (superTask != null)
+            if (superTask == null)
                 throw new Exception($"could not find super task {job.ID}");
 
             var nestedTasks = superTask.nestedTasks.Select(t => t.GetTaskData()).ToArray();
 
-            var stageTask = nestedTasks[0];
-            var loadTask = nestedTasks[1];
             var haulTask = nestedTasks[2];
-            var unloadTask = nestedTasks[3];
 
-            var originStation = ExtractStationFromId(job.chainData.chainOriginYardId);
-            var destinationStation = ExtractStationFromId(job.chainData.chainDestinationYardId);
+            var originStation = Helpers.ExtractStationFromId(job.chainData.chainOriginYardId);
+            var destinationStation = Helpers.ExtractStationFromId(job.chainData.chainDestinationYardId);
 
             // Overview Page
             pages.Add(new FrontPageTemplatePaperData(
-                jobType: "Load, Deliver, Unload",
+                jobType: "FREIGHT HAUL",
                 jobSubtype: "",
                 jobId: job.ID,
                 jobTypeColor: UnityEngine.Color.green,
                 jobDescription: $"Load the cars at {originStation.Name}, deliver them to {destinationStation.Name}, and unload them.",
                 requiredLicenses: job.requiredLicenses,
-                distinctCargoTypes: stageTask.cargoTypePerCar.Distinct().ToList(),
-                cargoTypePerCar: stageTask.cargoTypePerCar,
+                distinctCargoTypes: haulTask.cargoTypePerCar.Distinct().ToList(),
+                cargoTypePerCar: haulTask.cargoTypePerCar,
                 singleStationName: "",
                 singleStationType: "",
                 singleStationBgColor: UnityEngine.Color.white,
@@ -200,9 +317,9 @@ namespace DVOwnership.Patches
                 endStationName: destinationStation.Name,
                 endStationType: destinationStation.Type,
                 endStationBgColor: destinationStation.StationColor,
-                cars: stageTask.cars.Select(c => new Tuple<TrainCarType, string>(c.carType, c.ID)).ToList(),
-                trainLenght: stageTask.cars.Sum(c => c.length).ToString(),
-                trainMass: (stageTask.cars.Sum(c => c.carOnlyMass) + haulTask.cargoTypePerCar.Sum(c => CargoTypes.GetCargoMass(c, 1))).ToString(),
+                cars: Helpers._getCars(haulTask).Select(c => new Tuple<TrainCarType, string>(c.carType, c.ID)).ToList(),
+                trainLenght: Helpers._getCars(haulTask).Sum(c => c.length).ToString(),
+                trainMass: (Helpers._getCars(haulTask).Sum(c => c.carOnlyMass) + haulTask.cargoTypePerCar.Sum(c => CargoTypes.GetCargoMass(c, 1))).ToString(),
                 trainValue: "TODO",
                 timeBonus: job.GetBonusPaymentForTheJob().ToString(),
                 payment: job.GetBasePaymentForTheJob().ToString(),

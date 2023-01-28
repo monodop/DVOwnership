@@ -100,7 +100,7 @@ namespace DVOwnership
             float bonusTimeLimit = JobPaymentCalculator.CalculateShuntingBonusTimeLimit(countTracks);
             float distanceInMeters = 500f * countTracks;
             float baseWage = JobPaymentCalculator.CalculateJobPayment(JobType.ShuntingLoad, distanceInMeters, Utilities.ExtractPaymentCalculationData(carsForJob));
-            JobLicenses requiredLicenses = jobLicenses | LicenseManager.GetRequiredLicensesForJobType(JobType.ShuntingLoad);
+            JobLicenses requiredLicenses = jobLicenses | LicenseManager.GetRequiredLicensesForJobType(JobType.ShuntingLoad) | LicenseManager.GetRequiredLicensesForJobType(JobType.ShuntingUnload) | LicenseManager.GetRequiredLicensesForJobType(JobType.Transport);
 
             var jobDefinition = PopulateLoadHaulUnloadJobDefinitionWithExistingCars(jobChainController.jobChainGO, originController.logicStation, carsPerStartingTrack, loadMachine, unloadMachine, carsPerCargoTypes, bonusTimeLimit, baseWage, stationsChainData, requiredLicenses);
 
@@ -357,7 +357,7 @@ namespace DVOwnership
             return jobDefinition;
         }
 
-        private static StaticLoadHaulUnloadJobDefinition PopulateLoadHaulUnloadJobDefinitionWithExistingCars(GameObject chainJobGO, Station logicStation, List<CarsPerTrack> carsPerStartingTrack, WarehouseMachine loadMachine, WarehouseMachine unloadMachine, List<CarsPerCargoType> carsPerCargoType, float bonusTimeLimit, float baseWage, StationsChainData stationsChainData, JobLicenses requiredLicenses)
+        public static StaticLoadHaulUnloadJobDefinition PopulateLoadHaulUnloadJobDefinitionWithExistingCars(GameObject chainJobGO, Station logicStation, List<CarsPerTrack> carsPerStartingTrack, WarehouseMachine loadMachine, WarehouseMachine unloadMachine, List<CarsPerCargoType> carsPerCargoType, float bonusTimeLimit, float baseWage, StationsChainData stationsChainData, JobLicenses requiredLicenses)
         {
             var jobDefinition = chainJobGO.AddComponent<StaticLoadHaulUnloadJobDefinition>();
             jobDefinition.PopulateBaseJobDefinition(logicStation, bonusTimeLimit, baseWage, stationsChainData, requiredLicenses);

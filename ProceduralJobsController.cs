@@ -266,7 +266,7 @@ namespace DVOwnership
                         // Generate the job, but only if it meets the minimum requirements
                         if (carsForJob.Count >= minCarsPerJob)
                         {
-                            DVOwnership.LogDebug(() => $"Generating shunting load job for {carsForJob.Count} cars: [{string.Join(", ", carsForJob.Select(car => car.ID))}]");
+                            DVOwnership.LogDebug(() => $"Generating load haul unload job for {carsForJob.Count} cars: [{string.Join(", ", carsForJob.Select(car => car.ID))}]");
                             yield return null;
                             var carSetsForJob =
                                 from equipmentSet in equipmentSetsForJob
