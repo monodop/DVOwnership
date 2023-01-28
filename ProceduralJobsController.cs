@@ -197,14 +197,14 @@ namespace DVOwnership
                 {
                     if (loadStartingJobSupported && licensedOutputCargoGroups.Any(group => group.cargoTypes.Any(cargoType => CargoTypes.CanCarContainCargoType(carType, cargoType))))
                     {
-                        // Station can load cargo into this car & player is licensed to do so, generate shunting load job
-                        jobType = JobType.ShuntingLoad.ToString();
+                        // Station can load cargo into this car & player is licensed to do so, generate load haul unload job
+                        jobType = JobType.ComplexTransport.ToString();
                         var potentialCargoGroups = licensedOutputCargoGroups.Where(group => group.cargoTypes.Any(cargoType => CargoTypes.CanCarContainCargoType(carType, cargoType)));
                         var countCargoGroups = potentialCargoGroups.Count();
                         var indexInCargoGroups = rng.Next(countCargoGroups);
                         var cargoGroup = potentialCargoGroups.ElementAt(indexInCargoGroups);
 
-                        DVOwnership.LogDebug(() => $"Attempting to generate shunting load job using cargo group {indexInCargoGroups + 1} of {countCargoGroups} possible groups.");
+                        DVOwnership.LogDebug(() => $"Attempting to generate load haul unload job using cargo group {indexInCargoGroups + 1} of {countCargoGroups} possible groups.");
 
                         yield return null;
 
@@ -271,7 +271,7 @@ namespace DVOwnership
                             var carSetsForJob =
                                 from equipmentSet in equipmentSetsForJob
                                 select (from equipment in equipmentSet select equipment.GetLogicCar()).ToList();
-                            jobChainController = ProceduralJobGenerators.GenerateLoadChainJobForCars(rng, carSetsForJob.ToList(), cargoGroup, stationController);
+                            jobChainController = ProceduralJobGenerators.GenerateLoadHaulUnloadChainJobForCars(rng, carSetsForJob.ToList(), cargoGroup, stationController);
                         }
                         else
                         {
