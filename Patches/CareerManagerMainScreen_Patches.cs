@@ -26,7 +26,7 @@ namespace DVOwnership.Patches
     [HarmonyPatch(typeof(CareerManagerMainScreen), "Awake")]
     static class CareerManagerMainScreen_Awake_Patches
     {
-        static void Postfix(ref IntIterator ___selector, ref TextMeshPro[] ___selectableText)
+        static void Postfix(CareerManagerMainScreen __instance, ref IntIterator ___selector, ref TextMeshPro[] ___selectableText)
         {
             ___selector = new IntIterator(0, ___selector.Length + 1, ___selector.isWrappable);
             var nextLast = ___selectableText[___selectableText.Length - 2];
@@ -38,15 +38,6 @@ namespace DVOwnership.Patches
             var newTmp = gameObject.GetComponent<TextMeshPro>();
 
             ___selectableText = ___selectableText.Union(new[] { newTmp }).ToArray();
-        }
-    }
-
-    [HarmonyPatch(typeof(CareerManagerMainScreen), "Activate")]
-    static class CareerManagerMainScreen_Activate_Patches
-    {
-        static void Prefix(CareerManagerMainScreen __instance, TextMeshPro[] ___selectableText)
-        {
-            CareerManager_Helpers.FindTmp(___selectableText).SetText("Regen Contracts");
 
             var newScreenGO = new GameObject("DVOwnership_ContractsScreen");
             newScreenGO.transform.parent = __instance.transform.parent;
@@ -68,13 +59,21 @@ namespace DVOwnership.Patches
         }
     }
 
+    [HarmonyPatch(typeof(CareerManagerMainScreen), "Activate")]
+    static class CareerManagerMainScreen_Activate_Patches
+    {
+        static void Prefix(TextMeshPro[] ___selectableText)
+        {
+            CareerManager_Helpers.FindTmp(___selectableText).SetText("Regen Contracts");
+        }
+    }
+
     [HarmonyPatch(typeof(CareerManagerMainScreen), "Disable")]
     static class CareerManagerMainScreen_Disable_Patches
     {
-        static void Prefix(CareerManagerMainScreen __instance, TextMeshPro[] ___selectableText)
+        static void Prefix(TextMeshPro[] ___selectableText)
         {
             CareerManager_Helpers.FindTmp(___selectableText).SetText(String.Empty);
-            GameObject.Destroy(__instance.gameObject.transform.parent.gameObject.GetComponentInChildren<CareerManagerContractsScreen>().gameObject);
         }
     }
 
