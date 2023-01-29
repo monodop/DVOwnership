@@ -97,9 +97,14 @@ namespace DVOwnership
             var stationsChainData = new StationsChainData(originController.stationInfo.YardID, destinationController.stationInfo.YardID);
 
             int countTracks = carsPerStartingTrack.Count;
-            float bonusTimeLimit = JobPaymentCalculator.CalculateShuntingBonusTimeLimit(countTracks);
-            float distanceInMeters = 500f * countTracks;
-            float baseWage = JobPaymentCalculator.CalculateJobPayment(JobType.ShuntingLoad, distanceInMeters, Utilities.ExtractPaymentCalculationData(carsForJob));
+            float distanceBetweenStations = JobPaymentCalculator.GetDistanceBetweenStations(originController, destinationController);
+            float shuntDistanceInMeters = 500f * countTracks;
+
+            float bonusTimeLimit = (JobPaymentCalculator.CalculateShuntingBonusTimeLimit(countTracks) * 2) + JobPaymentCalculator.CalculateHaulBonusTimeLimit(distanceBetweenStations);
+            float baseWage = 
+                (JobPaymentCalculator.CalculateJobPayment(JobType.ShuntingLoad, shuntDistanceInMeters, Utilities.ExtractPaymentCalculationData(carsForJob)) * 2)
+                + JobPaymentCalculator.CalculateJobPayment(JobType.Transport, distanceBetweenStations, Utilities.ExtractPaymentCalculationData(carsForJob))
+                + JobPaymentCalculator.CalculateJobPayment(JobType.EmptyHaul, distanceBetweenStations / 2, Utilities.ExtractPaymentCalculationData(carsForJob));
             JobLicenses requiredLicenses = jobLicenses | LicenseManager.GetRequiredLicensesForJobType(JobType.ShuntingLoad) | LicenseManager.GetRequiredLicensesForJobType(JobType.ShuntingUnload) | LicenseManager.GetRequiredLicensesForJobType(JobType.Transport);
 
             var jobDefinition = PopulateLoadHaulUnloadJobDefinitionWithExistingCars(jobChainController.jobChainGO, originController.logicStation, carsPerStartingTrack, loadMachine, unloadMachine, carsPerCargoTypes, bonusTimeLimit, baseWage, stationsChainData, requiredLicenses);

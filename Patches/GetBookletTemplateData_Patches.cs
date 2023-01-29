@@ -79,6 +79,28 @@ namespace DVOwnership.Patches
             return task.destinationTrack.ID.FullDisplayID;
         }
 
+        public static string GetTrainLength(IEnumerable<Car> cars)
+        {
+            return cars.Sum(c => c.length).ToString("F") + " m";
+        }
+
+        public static string GetTrainMass(IEnumerable<Car> cars, IEnumerable<CargoType> cargoTypePerCar)
+        {
+            var sum = cars.Zip(cargoTypePerCar, (car, cargo) => car.carOnlyMass + (car.capacity * CargoTypes.GetCargoUnitMass(cargo))).Sum();
+            return (sum * 0.001f).ToString("F") + " t";
+        }
+
+        public static string GetTrainValue(IEnumerable<Car> cars, IEnumerable<CargoType> cargoTypePerCar)
+        {
+            var sum = cars.Zip(cargoTypePerCar, (car, cargo) => ResourceTypes.GetFullDamagePriceForCar(car.carType) + ResourceTypes.GetFullDamagePriceForCargo(cargo)).Sum();
+            return "$" + (sum / 1000000f).ToString("F") + "m";
+        }
+
+        public static string GetTimeLimit(Job job)
+        {
+            return (job.TimeLimit > 0) ? (Mathf.FloorToInt(job.TimeLimit / 60f) + " min") : "No bonus";
+        }
+
         public delegate StationInfo ExtractStationDelegate(string id);
         public static readonly ExtractStationDelegate ExtractStationFromId =
             AccessTools.Method(typeof(BookletCreator), "ExtractStationInfoWithYardID")?.CreateDelegate(typeof(ExtractStationDelegate)) as ExtractStationDelegate;
@@ -172,10 +194,10 @@ namespace DVOwnership.Patches
                 endStationType: destinationStation.Type,
                 endStationBgColor: destinationStation.StationColor,
                 cars: Helpers._getCars(haulTask).Select(c => new Tuple<TrainCarType, string>(c.carType, c.ID)).ToList(),
-                trainLenght: Helpers._getCars(haulTask).Sum(c => c.length).ToString(),
-                trainMass: (Helpers._getCars(haulTask).Sum(c => c.carOnlyMass) + haulTask.cargoTypePerCar.Sum(c => CargoTypes.GetCargoMass(c, 1))).ToString(),
-                trainValue: "TODO",
-                timeBonus: job.GetBonusPaymentForTheJob().ToString(),
+                trainLenght: Helpers.GetTrainLength(Helpers._getCars(haulTask)),
+                trainMass: Helpers.GetTrainMass(Helpers._getCars(haulTask), Helpers._getCargoTypePerCar(haulTask)),
+                trainValue: Helpers.GetTrainValue(Helpers._getCars(haulTask), Helpers._getCargoTypePerCar(haulTask)),
+                timeBonus: Helpers.GetTimeLimit(job),
                 payment: job.GetBasePaymentForTheJob().ToString(),
                 pageNumber: (pageNum++).ToString(),
                 totalPages: totalPages.ToString()
@@ -318,10 +340,10 @@ namespace DVOwnership.Patches
                 endStationType: destinationStation.Type,
                 endStationBgColor: destinationStation.StationColor,
                 cars: Helpers._getCars(haulTask).Select(c => new Tuple<TrainCarType, string>(c.carType, c.ID)).ToList(),
-                trainLenght: Helpers._getCars(haulTask).Sum(c => c.length).ToString(),
-                trainMass: (Helpers._getCars(haulTask).Sum(c => c.carOnlyMass) + haulTask.cargoTypePerCar.Sum(c => CargoTypes.GetCargoMass(c, 1))).ToString(),
-                trainValue: "TODO",
-                timeBonus: job.GetBonusPaymentForTheJob().ToString(),
+                trainLenght: Helpers.GetTrainLength(Helpers._getCars(haulTask)),
+                trainMass: Helpers.GetTrainMass(Helpers._getCars(haulTask), Helpers._getCargoTypePerCar(haulTask)),
+                trainValue: Helpers.GetTrainValue(Helpers._getCars(haulTask), Helpers._getCargoTypePerCar(haulTask)),
+                timeBonus: Helpers.GetTimeLimit(job),
                 payment: job.GetBasePaymentForTheJob().ToString(),
                 pageNumber: (pageNum++).ToString(),
                 totalPages: totalPages.ToString()
