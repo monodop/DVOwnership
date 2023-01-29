@@ -110,6 +110,11 @@ namespace DVOwnership
             var jobDefinition = PopulateLoadHaulUnloadJobDefinitionWithExistingCars(jobChainController.jobChainGO, originController.logicStation, carsPerStartingTrack, loadMachine, unloadMachine, carsPerCargoTypes, bonusTimeLimit, baseWage, stationsChainData, requiredLicenses);
 
             jobChainController.AddJobDefinitionToChain(jobDefinition);
+            jobChainController.JobChainCompleted += (sender) =>
+            {
+                DVOwnership.Log($"Job chain completed.");
+                destinationController.ProceduralJobsController.TryToGenerateJobs();
+            };
             jobChainController.FinalizeSetupAndGenerateFirstJob();
 
             return jobChainController;

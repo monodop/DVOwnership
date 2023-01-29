@@ -273,6 +273,10 @@ namespace DVOwnership.Patches
                 var stationsChainData = jobDefinition.chainData;
 
                 chainController.AddJobDefinitionToChain(jobDefinition);
+                chainController.JobChainCompleted += (sender) =>
+                {
+                    SingletonBehaviour<LogicController>.Instance.YardIdToStationController[jobDefinition.chainData.chainDestinationYardId].ProceduralJobsController.TryToGenerateJobs();
+                };
             }
 
             jobChainGO.name = ""; // TODO

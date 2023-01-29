@@ -77,30 +77,18 @@ namespace DVOwnership
 
             // get all (logic) cars with active jobs
             var carsWithJobs = new HashSet<Car>();
-            var activeJobs = PlayerJobs.Instance.currentJobs;
-            foreach (var job in activeJobs)
+            //var activeJobs = PlayerJobs.Instance.currentJobs;
+            var jobToJobCarsField = typeof(JobChainController).GetField("jobToJobCars", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            var activeJobs = jobToJobCarsField.GetValue(null) as Dictionary<Job, HashSet<TrainCar>>;
+            foreach (var kvp in activeJobs)
             {
-                yield return null;
-
-                var taskQ = new Queue<Task>();
-                foreach (var task in job.tasks)
+                var job = kvp.Key;
+                var cars = kvp.Value;
+                if (job.State == JobState.Available || job.State == JobState.InProgress)
                 {
-                    taskQ.Enqueue(task);
-                }
-
-                while (taskQ.Count > 0)
-                {
-                    var task = taskQ.Dequeue();
-                    var taskData = task.GetTaskData();
-                    var nestedTasks = taskData.nestedTasks ?? new List<Task>();
-                    foreach (var nestedTask in nestedTasks) { taskQ.Enqueue(nestedTask); }
-
-                    if (taskData.type == TaskType.Transport)
+                    foreach (var car in cars)
                     {
-                        foreach (var car in taskData.cars)
-                        {
-                            carsWithJobs.Add(car);
-                        }
+                        carsWithJobs.Add(car.logicCar);
                     }
                 }
             }
